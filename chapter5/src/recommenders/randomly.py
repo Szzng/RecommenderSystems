@@ -1,4 +1,4 @@
-from util.models import RecommendResult, Dataset
+from chapter5.src.util.models import Dataset, RecommendResult
 from base_recommender import BaseRecommender
 from collections import defaultdict
 import numpy as np
@@ -21,7 +21,6 @@ class RandomRecommender(BaseRecommender):
         movie_rating_predict = dataset.test.copy()
         pred_results = []
         for i, row in dataset.test.iterrows():
-            user_id = row["user_id"]
             # 테스트 데이터의 아이템 ID가 학습용으로 등장하지 않는 경우도 난수를 저장한다
             if row["movie_id"] not in movie_id2index:
                 pred_results.append(np.random.uniform(0.5, 5.0))
@@ -39,6 +38,7 @@ class RandomRecommender(BaseRecommender):
         pred_user2items = defaultdict(list)
         # 사용자가 이미 평가한 영화를 저장한다
         user_evaluated_movies = dataset.train.groupby("user_id").agg({"movie_id": list})["movie_id"].to_dict()
+
         for user_id in unique_user_ids:
             user_index = user_id2index[user_id]
             movie_indexes = np.argsort(-pred_matrix[user_index, :])
@@ -48,7 +48,7 @@ class RandomRecommender(BaseRecommender):
                     pred_user2items[user_id].append(movie_id)
                 if len(pred_user2items[user_id]) == 10:
                     break
-        return RecommendResult(movie_rating_predict.rating_pred, pred_user2items)
+        return RecommendResult(movie_rating_predict["rating_pred"], pred_user2items)
 
 
 if __name__ == "__main__":
