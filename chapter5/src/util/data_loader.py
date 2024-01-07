@@ -5,7 +5,8 @@ from chapter5.src.util.models import Dataset
 
 
 class DataLoader:
-    def __init__(self, num_users: int = 1000, num_test_items: int = 5, data_path: str = "../data/ml-10M100K/"):
+    def __init__(self, num_users: int = 1000, num_test_items: int = 5,
+                 data_path: str = "/Users/szzng/myproject/RecommenderSystems/chapter5/data/ml-10M100K/"):
         self.num_users = num_users
         self.num_test_items = num_test_items
         self.data_path = data_path
