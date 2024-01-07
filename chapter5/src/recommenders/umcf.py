@@ -1,5 +1,5 @@
-from util.models import RecommendResult, Dataset
-from src.base_recommender import BaseRecommender
+from chapter5.src.util.models import RecommendResult, Dataset
+from base_recommender import BaseRecommender
 from collections import defaultdict
 import numpy as np
 
@@ -11,16 +11,6 @@ np.random.seed(0)
 
 class UMCFRecommender(BaseRecommender):
     def recommend(self, dataset: Dataset, **kwargs) -> RecommendResult:
-
-        # 피어슨 상관 계수
-        def peason_coefficient(u: np.ndarray, v: np.ndarray) -> float:
-            u_diff = u - np.mean(u)
-            v_diff = v - np.mean(v)
-            numerator = np.dot(u_diff, v_diff)
-            denominator = np.sqrt(sum(u_diff ** 2)) * np.sqrt(sum(v_diff ** 2))
-            if denominator == 0:
-                return 0.0
-            return numerator / denominator
 
         is_naive = kwargs.get("is_naive", False)
 
@@ -104,30 +94,16 @@ class UMCFRecommender(BaseRecommender):
         else:
             # Surprise용으로 데이터를 가공한다
             reader = Reader(rating_scale=(0.5, 5))
-            data_train = SurpriseDataset.load_from_df(
-                dataset.train[["user_id", "movie_id", "rating"]], reader
-            ).build_full_trainset()
+            data_train = SurpriseDataset.load_from_df(dataset.train[["user_id", "movie_id", "rating"]],
+                                                      reader).build_full_trainset()
 
-            sim_options = {"name": "pearson", "user_based": True}  # 유사도를 계산하는 방법을 지정한다  # False로 하면 아이템 기반이 된다
-            knn = KNNWithMeans(k=30, min_k=1, sim_options=sim_options)
+            # 유사도를 계산하는 방법을 지정, user_based를 False로 하면 아이템 기반
+            knn = KNNWithMeans(k=30, min_k=1, sim_options={"name": "pearson", "user_based": True})
             knn.fit(data_train)
 
             # 학습 데이터셋에서 평갓값이 없는 사용자와 아이템의 조합을 준비
             data_test = data_train.build_anti_testset(None)
             predictions = knn.test(data_test)
-
-            def get_top_n(predictions, n=10):
-                # 각 사용자별로 예측된 아이템을 저장한다
-                top_n = defaultdict(list)
-                for uid, iid, true_r, est, _ in predictions:
-                    top_n[uid].append((iid, est))
-
-                # 상요자별로 아이템을 예측 평갓값순으로 나열하고 상위 n개를 저장한다
-                for uid, user_ratings in top_n.items():
-                    user_ratings.sort(key=lambda x: x[1], reverse=True)
-                    top_n[uid] = [d[0] for d in user_ratings[:n]]
-
-                return top_n
 
             pred_user2items = get_top_n(predictions, n=10)
 
@@ -136,16 +112,43 @@ class UMCFRecommender(BaseRecommender):
             for _, row in dataset.test.iterrows():
                 user_id = row["user_id"]
                 movie_id = row["movie_id"]
+
                 # 학습 데이터에 존재하지 않고 테스트 데이터에만 존재하는 사용자나 영화에 관한 예측 평갓값는 전체 평균 평갓값으로 한다
                 if user_id not in user_id2index or movie_id not in movie_id2index:
                     pred_results.append(average_score)
                     continue
+
                 pred_score = knn.predict(uid=user_id, iid=movie_id).est
                 pred_results.append(pred_score)
+
             movie_rating_predict["rating_pred"] = pred_results
 
         return RecommendResult(movie_rating_predict.rating_pred, pred_user2items)
 
+
+# 피어슨 상관 계수
+def peason_coefficient(u: np.ndarray, v: np.ndarray) -> float:
+    u_diff = u - np.mean(u)
+    v_diff = v - np.mean(v)
+    numerator = np.dot(u_diff, v_diff)
+    denominator = np.sqrt(sum(u_diff ** 2)) * np.sqrt(sum(v_diff ** 2))
+    if denominator == 0:
+        return 0.0
+    return numerator / denominator
+
+
+def get_top_n(predictions, n=10):
+    # 각 사용자별로 예측된 아이템을 저장한다
+    top_n = defaultdict(list)
+    for uid, iid, true_r, est, _ in predictions:
+        top_n[uid].append((iid, est))
+
+    # 상요자별로 아이템을 예측 평갓값순으로 나열하고 상위 n개를 저장한다
+    for uid, user_ratings in top_n.items():
+        user_ratings.sort(key=lambda x: x[1], reverse=True)
+        top_n[uid] = [d[0] for d in user_ratings[:n]]
+
+    return top_n
 
 if __name__ == "__main__":
     UMCFRecommender().run_sample()
